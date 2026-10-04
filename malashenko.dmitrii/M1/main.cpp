@@ -21,7 +21,7 @@ namespace malashenko
     int maxY;
   };
 
-  BoundingBox getBoundingBox(const std::vector<Ellipse> &ellipses)
+  BoundingBox getBoundingBox(const std::vector< Ellipse > &ellipses)
   {
     BoundingBox box;
 
@@ -66,6 +66,31 @@ namespace malashenko
       }
     }
     return {isInsideAny, isInsideAll};
+  }
+
+
+  std::pair< size_t, size_t > calc(const std::vector< Ellipse >& ellipses, BoundingBox box, size_t tests, size_t seed)
+  {
+    std::mt19937 generator(seed);
+
+    std::uniform_real_distribution< double > xDistribution(box.minX, box.maxX);
+    std::uniform_real_distribution< double > yDistribution(box.minY, box.maxY);
+
+    size_t insideAny = 0;
+    size_t insideAll = 0;
+
+
+    for (size_t i = 0; i < tests; ++i)
+    {
+      double x = xDistribution(generator);
+      double y = yDistribution(generator);
+
+      std::pair< bool, bool > result = isInsideAnyAll(ellipses, x, y);
+
+      insideAny += result.first;
+      insideAll += result.second;
+    }
+    return {insideAny, insideAll};
   }
 }
 
