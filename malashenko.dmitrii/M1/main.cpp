@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <iostream>
-#include <functional>
 #include <future>
 #include <random>
 #include <string>
@@ -28,6 +27,7 @@ namespace malashenko
     size_t tests;
     size_t seed;
   };
+
 
   BoundingBox getBoundingBox(const std::vector< Ellipse >& ellipses)
   {
@@ -59,7 +59,6 @@ namespace malashenko
 
   std::pair< bool, bool > isInsideAnyAll(const std::vector< Ellipse >& ellipses, double x, double y)
   {
-
     bool is_inside_any = false;
     bool is_inside_all = true;
     for (size_t i = 0; i < ellipses.size(); ++i)
@@ -76,22 +75,22 @@ namespace malashenko
     return {is_inside_any, is_inside_all};
   }
 
-  std::pair< size_t, size_t > calc(const std::vector< Ellipse >& ellipses, BoundingBox box, size_t tests, size_t seed)
+  std::pair< size_t, size_t > calc(const CalculationParams& params)
   {
-    std::default_random_engine generator(seed);
+    std::default_random_engine generator(params.seed);
 
-    std::uniform_real_distribution< double > x_distribution(box.min_x, box.max_x);
-    std::uniform_real_distribution< double > y_distribution(box.min_y, box.max_y);
+    std::uniform_real_distribution< double > x_distribution(params.box.min_x, params.box.max_x);
+    std::uniform_real_distribution< double > y_distribution(params.box.min_y, params.box.max_y);
 
     size_t inside_any = 0;
     size_t inside_all = 0;
 
-    for (size_t i = 0; i < tests; ++i)
+    for (size_t i = 0; i < params.tests; ++i)
     {
       const double x = x_distribution(generator);
       const double y = y_distribution(generator);
 
-      const std::pair< bool, bool > result = isInsideAnyAll(ellipses, x, y);
+      const std::pair< bool, bool > result = isInsideAnyAll(params.ellipses, x, y);
 
       inside_any += result.first;
       inside_all += result.second;
@@ -99,7 +98,7 @@ namespace malashenko
     return {inside_any, inside_all};
   }
 
-  std::pair< double, double > getAreaAnyAll(BoundingBox box, size_t tests, size_t inside_all, size_t inside_any)
+  std::pair< double, double > getAreaAnyAll(BoundingBox box, size_t tests, size_t inside_any, size_t inside_all)
   {
     const double box_area = (box.max_x - box.min_x) * (box.max_y - box.min_y);
     const double area_of_any = box_area * (static_cast< double >(inside_any) / tests);
@@ -110,31 +109,34 @@ namespace malashenko
 
   std::pair< size_t, size_t > calcParallel(const CalculationParams& params)
   {
-    std::vector< std::future< std::pair< size_t, size_t > > > futures;
+      std::vector< std::future< std::pair< size_t, size_t > > > futures;
 
-    const size_t tests_per_thread = params.tests / params.threads;
-    const size_t remainder = params.tests % params.threads;
+      const size_t tests_per_thread = params.tests / params.threads;
+      const size_t remainder = params.tests % params.threads;
 
-    for (size_t i = 0; i < params.threads; ++i)
-    {
-      const size_t thread_tests = tests_per_thread + (i == params.threads - 1 ? remainder : 0);
+      for (size_t i = 0; i < params.threads; ++i)
+      {
+          const size_t thread_tests = tests_per_thread + (i == params.threads - 1 ? remainder : 0);
 
-      futures.emplace_back(
-        std::async(std::launch::async, calc, std::cref(params.ellipses), params.box, thread_tests, params.seed + i));
-    }
+          CalculationParams thread_params = params;
+          thread_params.tests = thread_tests;
+          thread_params.seed += i;
 
-    size_t total_inside_any = 0;
-    size_t total_inside_all = 0;
+          futures.emplace_back(std::async(std::launch::async, calc, thread_params));
+      }
 
-    for (auto& future : futures)
-    {
-      const auto result = future.get();
+      size_t inside_any = 0;
+      size_t inside_all = 0;
 
-      total_inside_any += result.first;
-      total_inside_all += result.second;
-    }
+      for (auto& future : futures)
+      {
+          const std::pair< size_t, size_t > result = future.get();
 
-    return {total_inside_any, total_inside_all};
+          inside_any += result.first;
+          inside_all += result.second;
+      }
+
+      return {inside_any, inside_all};
   }
 }
 
@@ -228,7 +230,7 @@ int main(int argc, char* argv[])
 
   const std::pair< double, double > areas = malashenko::getAreaAnyAll(box, tests, result.first, result.second);
 
-  std::cout << areas.second << ' ' << areas.first << '\n';
+  std::cout << areas.first << ' ' << areas.second << '\n';
 
   return 0;
 }
