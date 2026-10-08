@@ -11,18 +11,12 @@ namespace malashenko
 {
   struct Ellipse
   {
-    int a;
-    int b;
-    int cx;
-    int cy;
+    int a, b, cx, cy;
   };
 
   struct BoundingBox
   {
-    int minX;
-    int minY;
-    int maxX;
-    int maxY;
+    int minX, minY, maxX, maxY;
   };
 
   BoundingBox getBoundingBox(const std::vector< Ellipse > &ellipses)
@@ -107,7 +101,7 @@ namespace malashenko
   }
 
   struct ThreadData {
-    const std::vector<Ellipse> *ellipses;
+    const std::vector< Ellipse >* ellipses;
     BoundingBox box;
     size_t tests;
     size_t seed;
@@ -128,7 +122,8 @@ namespace malashenko
     return nullptr;
   }
 
-  std::pair< size_t, size_t > calcParallel(const std::vector<Ellipse> &ellipses, BoundingBox box, size_t threads, size_t tests, size_t seed)
+  std::pair< size_t, size_t > calcParallel(const std::vector<Ellipse> &ellipses,  BoundingBox box,
+                                            size_t threads, size_t tests, size_t seed)
   {
     std::vector< pthread_t > threadIds(threads);
     std::vector< ThreadData > threadData(threads);
@@ -241,13 +236,20 @@ int main(int argc, char* argv[])
 
   while (std::cin >> a >> b >> cx >> cy)
   {
-    if (a <= 0 || b <= 0)
+    if (a <= 0 || b < 0)
     {
-      std::cerr << "Ellipse axes must be positive\n";
+      std::cerr << "Invalid figure parameters\n";
       return 1;
     }
 
-    ellipses.push_back({a, b, cx, cy});
+    if (b == 0)
+    {
+      ellipses.push_back({a, a, cx, cy});
+    }
+    else
+    {
+      ellipses.push_back({a, b, cx, cy});
+    }
   }
 
   if (!std::cin.eof())
@@ -268,8 +270,7 @@ int main(int argc, char* argv[])
 
   auto areas = malashenko::getAreaAnyAll(box, tests, result.first, result.second);
 
-  std::cout << areas.first << '\n';
-  std::cout << areas.second << '\n';
+  std::cout << areas.second << ' ' << areas.first << '\n';
 
   return 0;
 }
