@@ -188,9 +188,9 @@ int main(int argc, char* argv[])
     return 1;
   }
 
-  size_t threadsInput;
-  size_t testsInput;
-  size_t seedInput = 0;
+  long long threadsInput;
+  long long testsInput;
+  long long seedInput = 0;
 
   try
   {
