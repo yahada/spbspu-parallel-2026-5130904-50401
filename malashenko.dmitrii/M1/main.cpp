@@ -2,12 +2,10 @@
 #include <vector>
 #include <random>
 #include <utility>
-#include <pthread.h>
 #include <cstring>
 #include <algorithm>
 #include <cstddef>
 #include <string>
-#include <exception>
 #include <pthread.h>
 
 namespace malashenko
@@ -50,7 +48,7 @@ namespace malashenko
     return dx * dx + dy * dy <= 1.0;
   }
 
-  std::pair< bool, bool > is_inside_anyAll(const std::vector< Ellipse >& ellipses, double x, double y)
+  std::pair<bool, bool> isInsideAnyAll(const std::vector< Ellipse >& ellipses, double x, double y)
   {
 
     bool is_inside_any = false;
@@ -86,7 +84,7 @@ namespace malashenko
       const double x = x_distribution(generator);
       const double y = y_distribution(generator);
 
-      const std::pair< bool, bool > result = is_inside_anyAll(ellipses, x, y);
+      const std::pair< bool, bool > result = isInsideAnyAll(ellipses, x, y);
 
       inside_any += result.first;
       inside_all += result.second;
@@ -98,12 +96,12 @@ namespace malashenko
   {
     const double box_area = (box.max_x - box.min_x) * (box.max_y - box.min_y);
     const double area_of_any = box_area * (static_cast< double >(inside_any) / tests);
-    const double areaOfAll = box_area * (static_cast< double >(inside_all) / tests);
+    const double area_of_all = box_area * (static_cast< double >(inside_all) / tests);
 
-    return {area_of_any, areaOfAll};
+    return {area_of_any, area_of_all};
   }
 
-  struct thread_data {
+  struct ThreadData {
     const std::vector< Ellipse >* ellipses;
     BoundingBox box;
     size_t tests;
@@ -115,9 +113,9 @@ namespace malashenko
 
   void* threadFunction(void* arg)
   {
-    thread_data* const data = static_cast< thread_data* >(arg);
+    ThreadData* const data = static_cast< ThreadData* >(arg);
 
-    auto result = calc(*data->ellipses, data->box, data->tests, data->seed);
+    const std::pair<size_t, size_t> result = calc(*data->ellipses, data->box, data->tests, data->seed);
 
     data->inside_any = result.first;
     data->inside_all = result.second;
@@ -129,7 +127,7 @@ namespace malashenko
                                             size_t threads, size_t tests, size_t seed)
   {
     std::vector< pthread_t > thread_ids(threads);
-    std::vector< thread_data > thread_data(threads);
+    std::vector< ThreadData > thread_data(threads);
 
     const size_t tests_per_thread = tests / threads;
     const size_t remainder = tests % threads;
@@ -151,7 +149,7 @@ namespace malashenko
       thread_data[i].inside_any = 0;
       thread_data[i].inside_all = 0;
 
-      int err = pthread_create(&thread_ids[i], nullptr, threadFunction, &thread_data[i]);
+      const int err = pthread_create(&thread_ids[i], nullptr, threadFunction, &thread_data[i]);
 
       if (err != 0)
       {
@@ -160,12 +158,12 @@ namespace malashenko
       }
     }
 
-    size_t totalinside_any = 0;
-    size_t totalinside_all = 0;
+    size_t total_inside_any = 0;
+    size_t total_inside_all = 0;
 
     for (size_t i = 0; i < threads; ++i)
     {
-      int err = pthread_join(thread_ids[i], nullptr);
+      const int err = pthread_join(thread_ids[i], nullptr);
 
       if (err != 0)
       {
@@ -174,11 +172,11 @@ namespace malashenko
         return {0, 0};
       }
 
-      totalinside_any += thread_data[i].inside_any;
-      totalinside_all += thread_data[i].inside_all;
+      total_inside_any += thread_data[i].inside_any;
+      total_inside_all += thread_data[i].inside_all;
     }
 
-    return {totalinside_any, totalinside_all};
+    return {total_inside_any, total_inside_all};
   }
 }
 
@@ -263,11 +261,11 @@ int main(int argc, char* argv[])
     return 1;
   }
 
-  malashenko::BoundingBox box = malashenko::getBoundingBox(ellipses);
+  const malashenko::BoundingBox box = malashenko::getBoundingBox(ellipses);
 
-  auto result = malashenko::calcParallel(ellipses, box, threads, tests, seed);
+  const std::pair< size_t, size_t > result = malashenko::calcParallel(ellipses, box, threads, tests, seed);
 
-  auto areas = malashenko::getAreaAnyAll(box, tests, result.first, result.second);
+  const std::pair< double, double > areas = malashenko::getAreaAnyAll(box, tests, result.first, result.second);
 
   std::cout << areas.second << ' ' << areas.first << '\n';
 
