@@ -1,19 +1,32 @@
 #include <algorithm>
 #include <cstddef>
 #include <iostream>
+#include <functional>
 #include <future>
 #include <random>
 #include <string>
 #include <utility>
 #include <vector>
 
-namespace malashenko {
-  struct Ellipse {
+namespace malashenko
+{
+  struct Ellipse
+  {
     int a, b, cx, cy;
   };
 
-  struct BoundingBox {
+  struct BoundingBox
+  {
     int min_x, min_y, max_x, max_y;
+  };
+
+  struct CalculationParams
+  {
+    const std::vector< Ellipse >& ellipses;
+    BoundingBox box;
+    size_t threads;
+    size_t tests;
+    size_t seed;
   };
 
   BoundingBox getBoundingBox(const std::vector< Ellipse >& ellipses)
@@ -25,7 +38,8 @@ namespace malashenko {
     box.min_y = ellipses[0].cy - ellipses[0].b;
     box.max_y = ellipses[0].cy + ellipses[0].b;
 
-    for (size_t i = 1; i < ellipses.size(); ++i) {
+    for (size_t i = 1; i < ellipses.size(); ++i)
+    {
       box.min_x = std::min(box.min_x, ellipses[i].cx - ellipses[i].a);
       box.max_x = std::max(box.max_x, ellipses[i].cx + ellipses[i].a);
       box.min_y = std::min(box.min_y, ellipses[i].cy - ellipses[i].b);
@@ -48,10 +62,14 @@ namespace malashenko {
 
     bool is_inside_any = false;
     bool is_inside_all = true;
-    for (size_t i = 0; i < ellipses.size(); ++i) {
-      if (isInside(ellipses[i], x, y)) {
+    for (size_t i = 0; i < ellipses.size(); ++i)
+    {
+      if (isInside(ellipses[i], x, y))
+      {
         is_inside_any = true;
-      } else {
+      }
+      else
+      {
         is_inside_all = false;
       }
     }
@@ -68,7 +86,8 @@ namespace malashenko {
     size_t inside_any = 0;
     size_t inside_all = 0;
 
-    for (size_t i = 0; i < tests; ++i) {
+    for (size_t i = 0; i < tests; ++i)
+    {
       const double x = x_distribution(generator);
       const double y = y_distribution(generator);
 
@@ -80,8 +99,7 @@ namespace malashenko {
     return {inside_any, inside_all};
   }
 
-  std::pair< double, double > getAreaAnyAll(BoundingBox box, size_t tests,
-                                          size_t inside_all, size_t inside_any)
+  std::pair< double, double > getAreaAnyAll(BoundingBox box, size_t tests, size_t inside_all, size_t inside_any)
   {
     const double box_area = (box.max_x - box.min_x) * (box.max_y - box.min_y);
     const double area_of_any = box_area * (static_cast< double >(inside_any) / tests);
@@ -90,14 +108,6 @@ namespace malashenko {
     return {area_of_any, area_of_all};
   }
 
-  struct CalculationParams {
-    const std::vector< Ellipse >& ellipses;
-    BoundingBox box;
-    size_t threads;
-    size_t tests;
-    size_t seed;
-  };
-
   std::pair< size_t, size_t > calcParallel(const CalculationParams& params)
   {
     std::vector< std::future< std::pair< size_t, size_t > > > futures;
@@ -105,22 +115,19 @@ namespace malashenko {
     const size_t tests_per_thread = params.tests / params.threads;
     const size_t remainder = params.tests % params.threads;
 
-    for (size_t i = 0; i < params.threads; ++i) {
+    for (size_t i = 0; i < params.threads; ++i)
+    {
       const size_t thread_tests = tests_per_thread + (i == params.threads - 1 ? remainder : 0);
 
-      futures.push_back(std::async(
-          std::launch::async,
-          calc,
-          std::cref(params.ellipses),
-          params.box,
-          thread_tests,
-          params.seed + i));
+      futures.emplace_back(
+        std::async(std::launch::async, calc, std::cref(params.ellipses), params.box, thread_tests, params.seed + i));
     }
 
     size_t total_inside_any = 0;
     size_t total_inside_all = 0;
 
-    for (auto& future : futures) {
+    for (auto& future : futures)
+    {
       const auto result = future.get();
 
       total_inside_any += result.first;
@@ -219,7 +226,7 @@ int main(int argc, char* argv[])
   const malashenko::CalculationParams params{ellipses, box, threads, tests, seed};
   const std::pair< size_t, size_t > result = malashenko::calcParallel(params);
 
-  const std::pair< double, double > areas = malashenko::getAreaAnyAll( box, tests, result.first, result.second);
+  const std::pair< double, double > areas = malashenko::getAreaAnyAll(box, tests, result.first, result.second);
 
   std::cout << areas.second << ' ' << areas.first << '\n';
 
