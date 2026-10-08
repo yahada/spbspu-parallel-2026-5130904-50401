@@ -19,7 +19,8 @@ namespace malashenko
     int min_x, min_y, max_x, max_y;
   };
 
-  struct CalculationParams {
+  struct CalculationParams
+  {
     const std::vector< Ellipse >& ellipses;
     BoundingBox box;
     size_t threads, tests, seed;
