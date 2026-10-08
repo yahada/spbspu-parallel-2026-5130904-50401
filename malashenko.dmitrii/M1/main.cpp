@@ -9,18 +9,15 @@
 
 namespace malashenko
 {
-  struct Ellipse
-  {
+  struct Ellipse {
     int a, b, cx, cy;
   };
 
-  struct BoundingBox
-  {
+  struct BoundingBox {
     int min_x, min_y, max_x, max_y;
   };
 
-  struct CalculationParams
-  {
+  struct CalculationParams {
     const std::vector< Ellipse >& ellipses;
     BoundingBox box;
     size_t threads;
@@ -109,34 +106,34 @@ namespace malashenko
 
   std::pair< size_t, size_t > calcParallel(const CalculationParams& params)
   {
-      std::vector< std::future< std::pair< size_t, size_t > > > futures;
+    std::vector< std::future< std::pair< size_t, size_t > > > futures;
 
-      const size_t tests_per_thread = params.tests / params.threads;
-      const size_t remainder = params.tests % params.threads;
+    const size_t tests_per_thread = params.tests / params.threads;
+    const size_t remainder = params.tests % params.threads;
 
-      for (size_t i = 0; i < params.threads; ++i)
-      {
-          const size_t thread_tests = tests_per_thread + (i == params.threads - 1 ? remainder : 0);
+    for (size_t i = 0; i < params.threads; ++i)
+    {
+      const size_t thread_tests = tests_per_thread + (i == params.threads - 1 ? remainder : 0);
 
-          CalculationParams thread_params = params;
-          thread_params.tests = thread_tests;
-          thread_params.seed += i;
+      CalculationParams thread_params = params;
+      thread_params.tests = thread_tests;
+      thread_params.seed += i;
 
-          futures.emplace_back(std::async(std::launch::async, calc, thread_params));
-      }
+      futures.emplace_back(std::async(std::launch::async, calc, thread_params));
+    }
 
-      size_t inside_any = 0;
-      size_t inside_all = 0;
+    size_t inside_any = 0;
+    size_t inside_all = 0;
 
-      for (auto& future : futures)
-      {
-          const std::pair< size_t, size_t > result = future.get();
+    for (auto& future : futures)
+    {
+      const std::pair< size_t, size_t > result = future.get();
 
-          inside_any += result.first;
-          inside_all += result.second;
-      }
+      inside_any += result.first;
+      inside_all += result.second;
+    }
 
-      return {inside_any, inside_all};
+    return {inside_any, inside_all};
   }
 }
 
