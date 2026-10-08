@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <cstddef>
-#include <cstring>
 #include <iostream>
 #include <future>
 #include <random>
@@ -91,75 +90,41 @@ namespace malashenko {
     return {area_of_any, area_of_all};
   }
 
-  struct ThreadData {
-    const std::vector< Ellipse >* ellipses;
+  struct CalculationParams {
+    const std::vector< Ellipse >& ellipses;
     BoundingBox box;
+    size_t threads;
     size_t tests;
     size_t seed;
-
-    size_t inside_any;
-    size_t inside_all;
   };
 
-  void* threadFunction(void* arg)
+  std::pair< size_t, size_t > calcParallel(const CalculationParams& params)
   {
-    ThreadData* const data = static_cast< ThreadData* >(arg);
+    std::vector< std::future< std::pair< size_t, size_t > > > futures;
 
-    const std::pair< size_t, size_t > result = calc(*data->ellipses, data->box, data->tests, data->seed);
+    const size_t tests_per_thread = params.tests / params.threads;
+    const size_t remainder = params.tests % params.threads;
 
-    data->inside_any = result.first;
-    data->inside_all = result.second;
+    for (size_t i = 0; i < params.threads; ++i) {
+      const size_t thread_tests = tests_per_thread + (i == params.threads - 1 ? remainder : 0);
 
-    return nullptr;
-  }
-
-  std::pair< size_t, size_t > calcParallel(const std::vector< Ellipse >& ellipses,
-                                        BoundingBox box, size_t threads,
-                                        size_t tests, size_t seed)
-  {
-    std::vector< pthread_t > thread_ids(threads);
-    std::vector< ThreadData > thread_data(threads);
-
-    const size_t tests_per_thread = tests / threads;
-    const size_t remainder = tests % threads;
-
-    for (size_t i = 0; i < threads; ++i) {
-      thread_data[i].ellipses = &ellipses;
-      thread_data[i].box = box;
-
-      thread_data[i].tests = tests_per_thread;
-
-      if (i == threads - 1) {
-        thread_data[i].tests += remainder;
-      }
-
-      thread_data[i].seed = seed + i;
-
-      thread_data[i].inside_any = 0;
-      thread_data[i].inside_all = 0;
-
-      const int err = pthread_create(&thread_ids[i], nullptr, threadFunction, &thread_data[i]);
-
-      if (err != 0) {
-        std::cerr << "pthread_create: " << strerror(err) << '\n';
-        return {0, 0};
-      }
+      futures.push_back(std::async(
+          std::launch::async,
+          calc,
+          std::cref(params.ellipses),
+          params.box,
+          thread_tests,
+          params.seed + i));
     }
 
     size_t total_inside_any = 0;
     size_t total_inside_all = 0;
 
-    for (size_t i = 0; i < threads; ++i) {
-      const int err = pthread_join(thread_ids[i], nullptr);
+    for (auto& future : futures) {
+      const auto result = future.get();
 
-      if (err != 0) {
-        std::cerr << "pthread_join: " << strerror(err) << '\n';
-
-        return {0, 0};
-      }
-
-      total_inside_any += thread_data[i].inside_any;
-      total_inside_all += thread_data[i].inside_all;
+      total_inside_any += result.first;
+      total_inside_all += result.second;
     }
 
     return {total_inside_any, total_inside_all};
@@ -168,7 +133,8 @@ namespace malashenko {
 
 int main(int argc, char* argv[])
 {
-  if (argc != 3 && argc != 4) {
+  if (argc != 3 && argc != 4)
+  {
     std::cerr << "Usage: ./lab threads tries [seed]\n";
     return 1;
   }
@@ -177,24 +143,30 @@ int main(int argc, char* argv[])
   long long tests_input = 0;
   long long seed_input = 0;
 
-  try {
+  try
+  {
     threads_input = std::stoll(argv[1]);
     tests_input = std::stoll(argv[2]);
 
-    if (argc == 4) {
+    if (argc == 4)
+    {
       seed_input = std::stoll(argv[3]);
     }
-  } catch (...) {
+  }
+  catch (...)
+  {
     std::cerr << "Invalid command line arguments\n";
     return 1;
   }
 
-  if (threads_input < 0 || (argc == 4 && seed_input < 0)) {
+  if (threads_input < 0 || (argc == 4 && seed_input < 0))
+  {
     std::cerr << "Threads and seed cannot be negative\n";
     return 1;
   }
 
-  if (tests_input <= 0) {
+  if (tests_input <= 0)
+  {
     std::cerr << "Number of tests must be positive\n";
     return 1;
   }
@@ -207,36 +179,47 @@ int main(int argc, char* argv[])
 
   std::vector< malashenko::Ellipse > ellipses;
 
-  int a = 0, b = 0, cx = 0, cy = 0;
+  int a = 0;
+  int b = 0;
+  int cx = 0;
+  int cy = 0;
 
-  while (std::cin >> a >> b >> cx >> cy) {
-    if (a <= 0 || b < 0) {
+  while (std::cin >> a >> b >> cx >> cy)
+  {
+    if (a <= 0 || b < 0)
+    {
       std::cerr << "Invalid figure parameters\n";
       return 1;
     }
 
-    if (b == 0) {
+    if (b == 0)
+    {
       ellipses.push_back({a, a, cx, cy});
-    } else {
+    }
+    else
+    {
       ellipses.push_back({a, b, cx, cy});
     }
   }
 
-  if (!std::cin.eof()) {
+  if (!std::cin.eof())
+  {
     std::cerr << "Failed to parse figure\n";
     return 1;
   }
 
-  if (ellipses.empty()) {
+  if (ellipses.empty())
+  {
     std::cerr << "No figures provided\n";
     return 1;
   }
 
   const malashenko::BoundingBox box = malashenko::getBoundingBox(ellipses);
 
-  const std::pair< size_t, size_t > result = malashenko::calcParallel(ellipses, box, threads, tests, seed);
+  const malashenko::CalculationParams params{ellipses, box, threads, tests, seed};
+  const std::pair< size_t, size_t > result = malashenko::calcParallel(params);
 
-  const std::pair< double, double > areas = malashenko::getAreaAnyAll(box, tests, result.first, result.second);
+  const std::pair< double, double > areas = malashenko::getAreaAnyAll( box, tests, result.first, result.second);
 
   std::cout << areas.second << ' ' << areas.first << '\n';
 
