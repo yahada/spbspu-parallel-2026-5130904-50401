@@ -9,22 +9,21 @@
 
 namespace malashenko
 {
-  struct Ellipse {
+  struct Ellipse
+  {
     int a, b, cx, cy;
   };
 
-  struct BoundingBox {
+  struct BoundingBox
+  {
     int min_x, min_y, max_x, max_y;
   };
 
   struct CalculationParams {
     const std::vector< Ellipse >& ellipses;
     BoundingBox box;
-    size_t threads;
-    size_t tests;
-    size_t seed;
+    size_t threads, tests, seed;
   };
-
 
   BoundingBox getBoundingBox(const std::vector< Ellipse >& ellipses)
   {
