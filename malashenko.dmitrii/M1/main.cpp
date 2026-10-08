@@ -6,6 +6,9 @@
 #include <cstring>
 #include <algorithm>
 #include <cstddef>
+#include <string>
+#include <exception>
+#include <pthread.h>
 
 namespace malashenko
 {
@@ -16,24 +19,24 @@ namespace malashenko
 
   struct BoundingBox
   {
-    int minX, minY, maxX, maxY;
+    int min_x, min_y, max_x, max_y;
   };
 
   BoundingBox getBoundingBox(const std::vector< Ellipse > &ellipses)
   {
     BoundingBox box;
 
-    box.minX = ellipses[0].cx - ellipses[0].a;
-    box.maxX = ellipses[0].cx + ellipses[0].a;
-    box.minY = ellipses[0].cy - ellipses[0].b;
-    box.maxY = ellipses[0].cy + ellipses[0].b;
+    box.min_x = ellipses[0].cx - ellipses[0].a;
+    box.max_x = ellipses[0].cx + ellipses[0].a;
+    box.min_y = ellipses[0].cy - ellipses[0].b;
+    box.max_y = ellipses[0].cy + ellipses[0].b;
 
     for (size_t i = 1; i < ellipses.size(); ++i)
     {
-      box.minX = std::min(box.minX, ellipses[i].cx - ellipses[i].a);
-      box.maxX = std::max(box.maxX, ellipses[i].cx + ellipses[i].a);
-      box.minY = std::min(box.minY, ellipses[i].cy - ellipses[i].b);
-      box.maxY = std::max(box.maxY, ellipses[i].cy + ellipses[i].b);
+      box.min_x = std::min(box.min_x, ellipses[i].cx - ellipses[i].a);
+      box.max_x = std::max(box.max_x, ellipses[i].cx + ellipses[i].a);
+      box.min_y = std::min(box.min_y, ellipses[i].cy - ellipses[i].b);
+      box.max_y = std::max(box.max_y, ellipses[i].cy + ellipses[i].b);
     }
 
     return box;
@@ -41,83 +44,83 @@ namespace malashenko
 
   bool isInside(const Ellipse& el, double x, double y)
   {
-    double dx = (x - el.cx) / el.a;
-    double dy = (y - el.cy) / el.b;
+    const double dx = (x - el.cx) / el.a;
+    const double dy = (y - el.cy) / el.b;
 
     return dx * dx + dy * dy <= 1.0;
   }
 
-  std::pair< bool, bool > isInsideAnyAll(const std::vector< Ellipse >& ellipses, double x, double y)
+  std::pair< bool, bool > is_inside_anyAll(const std::vector< Ellipse >& ellipses, double x, double y)
   {
 
-    bool isInsideAny = false;
-    bool isInsideAll = true;
+    bool is_inside_any = false;
+    bool is_inside_all = true;
     for (size_t i = 0; i < ellipses.size(); ++i)
     {
       if(isInside(ellipses[i], x, y))
       {
-        isInsideAny = true;
+        is_inside_any = true;
       }
       else
       {
-        isInsideAll = false;
+        is_inside_all = false;
       }
     }
-    return {isInsideAny, isInsideAll};
+    return {is_inside_any, is_inside_all};
   }
 
 
   std::pair< size_t, size_t > calc(const std::vector< Ellipse >& ellipses, BoundingBox box, size_t tests, size_t seed)
   {
-    std::mt19937 generator(seed);
+    std::default_random_engine generator(seed);
 
-    std::uniform_real_distribution< double > xDistribution(box.minX, box.maxX);
-    std::uniform_real_distribution< double > yDistribution(box.minY, box.maxY);
+    std::uniform_real_distribution< double > x_distribution(box.min_x, box.max_x);
+    std::uniform_real_distribution< double > y_distribution(box.min_y, box.max_y);
 
-    size_t insideAny = 0;
-    size_t insideAll = 0;
+    size_t inside_any = 0;
+    size_t inside_all = 0;
 
 
     for (size_t i = 0; i < tests; ++i)
     {
-      double x = xDistribution(generator);
-      double y = yDistribution(generator);
+      const double x = x_distribution(generator);
+      const double y = y_distribution(generator);
 
-      std::pair< bool, bool > result = isInsideAnyAll(ellipses, x, y);
+      const std::pair< bool, bool > result = is_inside_anyAll(ellipses, x, y);
 
-      insideAny += result.first;
-      insideAll += result.second;
+      inside_any += result.first;
+      inside_all += result.second;
     }
-    return {insideAny, insideAll};
+    return {inside_any, inside_all};
   }
 
-  std::pair< double, double > getAreaAnyAll(BoundingBox box, size_t tests, size_t insideAll, size_t insideAny)
+  std::pair< double, double > getAreaAnyAll(BoundingBox box, size_t tests, size_t inside_all, size_t inside_any)
   {
-    double boxArea = (box.maxX - box.minX) * (box.maxY - box.minY);
-    double areaOfAny = boxArea * (static_cast< double >(insideAny) / tests);
-    double areaOfAll = boxArea * (static_cast< double >(insideAll) / tests);
+    const double box_area = (box.max_x - box.min_x) * (box.max_y - box.min_y);
+    const double area_of_any = box_area * (static_cast< double >(inside_any) / tests);
+    const double areaOfAll = box_area * (static_cast< double >(inside_all) / tests);
 
-    return {areaOfAny, areaOfAll};
+    return {area_of_any, areaOfAll};
   }
 
-  struct ThreadData {
+  struct thread_data {
     const std::vector< Ellipse >* ellipses;
     BoundingBox box;
     size_t tests;
     size_t seed;
 
-    size_t insideAny;
-    size_t insideAll;
+    size_t inside_any;
+    size_t inside_all;
   };
 
   void* threadFunction(void* arg)
   {
-    ThreadData* data = static_cast< ThreadData* >(arg);
+    thread_data* const data = static_cast< thread_data* >(arg);
 
     auto result = calc(*data->ellipses, data->box, data->tests, data->seed);
 
-    data->insideAny = result.first;
-    data->insideAll = result.second;
+    data->inside_any = result.first;
+    data->inside_all = result.second;
 
     return nullptr;
   }
@@ -125,30 +128,30 @@ namespace malashenko
   std::pair< size_t, size_t > calcParallel(const std::vector<Ellipse> &ellipses,  BoundingBox box,
                                             size_t threads, size_t tests, size_t seed)
   {
-    std::vector< pthread_t > threadIds(threads);
-    std::vector< ThreadData > threadData(threads);
+    std::vector< pthread_t > thread_ids(threads);
+    std::vector< thread_data > thread_data(threads);
 
-    size_t testsPerThread = tests / threads;
-    size_t remainder = tests % threads;
+    const size_t tests_per_thread = tests / threads;
+    const size_t remainder = tests % threads;
 
     for (size_t i = 0; i < threads; ++i)
     {
-      threadData[i].ellipses = &ellipses;
-      threadData[i].box = box;
+      thread_data[i].ellipses = &ellipses;
+      thread_data[i].box = box;
 
-      threadData[i].tests = testsPerThread;
+      thread_data[i].tests = tests_per_thread;
 
       if (i == threads - 1)
       {
-        threadData[i].tests += remainder;
+        thread_data[i].tests += remainder;
       }
 
-      threadData[i].seed = seed + i;
+      thread_data[i].seed = seed + i;
 
-      threadData[i].insideAny = 0;
-      threadData[i].insideAll = 0;
+      thread_data[i].inside_any = 0;
+      thread_data[i].inside_all = 0;
 
-      int err = pthread_create(&threadIds[i], nullptr, threadFunction, &threadData[i]);
+      int err = pthread_create(&thread_ids[i], nullptr, threadFunction, &thread_data[i]);
 
       if (err != 0)
       {
@@ -157,12 +160,12 @@ namespace malashenko
       }
     }
 
-    size_t totalInsideAny = 0;
-    size_t totalInsideAll = 0;
+    size_t totalinside_any = 0;
+    size_t totalinside_all = 0;
 
     for (size_t i = 0; i < threads; ++i)
     {
-      int err = pthread_join(threadIds[i], nullptr);
+      int err = pthread_join(thread_ids[i], nullptr);
 
       if (err != 0)
       {
@@ -171,11 +174,11 @@ namespace malashenko
         return {0, 0};
       }
 
-      totalInsideAny += threadData[i].insideAny;
-      totalInsideAll += threadData[i].insideAll;
+      totalinside_any += thread_data[i].inside_any;
+      totalinside_all += thread_data[i].inside_all;
     }
 
-    return {totalInsideAny, totalInsideAll};
+    return {totalinside_any, totalinside_all};
   }
 }
 
@@ -188,51 +191,47 @@ int main(int argc, char* argv[])
     return 1;
   }
 
-  long long threadsInput;
-  long long testsInput;
-  long long seedInput = 0;
+  long long threads_input = 0;
+  long long tests_input = 0;
+  long long seed_input = 0;
 
   try
   {
-    threadsInput = std::stoll(argv[1]);
-    testsInput = std::stoll(argv[2]);
+    threads_input = std::stoll(argv[1]);
+    tests_input = std::stoll(argv[2]);
 
     if (argc == 4)
     {
-      seedInput = std::stoll(argv[3]);
+      seed_input = std::stoll(argv[3]);
     }
   }
-  catch (const std::exception&)
+  catch (...)
   {
     std::cerr << "Invalid command line arguments\n";
     return 1;
   }
 
-  if (threadsInput < 0 || (argc == 4 && seedInput < 0))
+  if (threads_input < 0 || (argc == 4 && seed_input < 0))
   {
     std::cerr << "Threads and seed cannot be negative\n";
     return 1;
   }
 
-  if (testsInput <= 0)
+  if (tests_input <= 0)
   {
     std::cerr << "Number of tests must be positive\n";
     return 1;
   }
 
-  if (threadsInput == 0)
-  {
-    std::cerr << "Number of threads must be positive\n";
-    return 1;
-  }
+  threads_input = threads_input == 0 ? 1 : threads_input;
 
-  size_t threads = static_cast< size_t >(threadsInput);
-  size_t tests = static_cast< size_t >(testsInput);
-  size_t seed = static_cast< size_t >(seedInput);
+  const size_t threads = static_cast< size_t >(threads_input);
+  const size_t tests = static_cast< size_t >(tests_input);
+  const size_t seed = static_cast< size_t >(seed_input);
 
-  std::vector<malashenko::Ellipse> ellipses;
+  std::vector< malashenko::Ellipse > ellipses;
 
-  int a, b, cx, cy;
+  int a = 0, b = 0, cx = 0, cy = 0;
 
   while (std::cin >> a >> b >> cx >> cy)
   {
