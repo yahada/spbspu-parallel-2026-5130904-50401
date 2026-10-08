@@ -2,7 +2,7 @@
 #include <cstddef>
 #include <cstring>
 #include <iostream>
-#include <pthread.h>
+#include <future>
 #include <random>
 #include <string>
 #include <utility>
@@ -17,7 +17,8 @@ namespace malashenko {
     int min_x, min_y, max_x, max_y;
   };
 
-  BoundingBox getBoundingBox(const std::vector< Ellipse >& ellipses) {
+  BoundingBox getBoundingBox(const std::vector< Ellipse >& ellipses)
+  {
     BoundingBox box;
 
     box.min_x = ellipses[0].cx - ellipses[0].a;
@@ -35,14 +36,16 @@ namespace malashenko {
     return box;
   }
 
-  bool isInside(const Ellipse& el, double x, double y) {
+  bool isInside(const Ellipse& el, double x, double y)
+  {
     const double dx = (x - el.cx) / el.a;
     const double dy = (y - el.cy) / el.b;
 
     return dx * dx + dy * dy <= 1.0;
   }
 
-  std::pair< bool, bool > isInsideAnyAll(const std::vector< Ellipse >& ellipses, double x, double y) {
+  std::pair< bool, bool > isInsideAnyAll(const std::vector< Ellipse >& ellipses, double x, double y)
+  {
 
     bool is_inside_any = false;
     bool is_inside_all = true;
@@ -56,8 +59,8 @@ namespace malashenko {
     return {is_inside_any, is_inside_all};
   }
 
-  std::pair< size_t, size_t > calc(const std::vector< Ellipse >& ellipses,
-                                BoundingBox box, size_t tests, size_t seed) {
+  std::pair< size_t, size_t > calc(const std::vector< Ellipse >& ellipses, BoundingBox box, size_t tests, size_t seed)
+  {
     std::default_random_engine generator(seed);
 
     std::uniform_real_distribution< double > x_distribution(box.min_x, box.max_x);
@@ -79,16 +82,17 @@ namespace malashenko {
   }
 
   std::pair< double, double > getAreaAnyAll(BoundingBox box, size_t tests,
-                                          size_t inside_all, size_t inside_any) {
+                                          size_t inside_all, size_t inside_any)
+  {
     const double box_area = (box.max_x - box.min_x) * (box.max_y - box.min_y);
-    const double area_of_any = box_area * (static_cast<double>(inside_any) / tests);
-    const double area_of_all = box_area * (static_cast<double>(inside_all) / tests);
+    const double area_of_any = box_area * (static_cast< double >(inside_any) / tests);
+    const double area_of_all = box_area * (static_cast< double >(inside_all) / tests);
 
     return {area_of_any, area_of_all};
   }
 
   struct ThreadData {
-    const std::vector<Ellipse>* ellipses;
+    const std::vector< Ellipse >* ellipses;
     BoundingBox box;
     size_t tests;
     size_t seed;
@@ -97,7 +101,8 @@ namespace malashenko {
     size_t inside_all;
   };
 
-  void* threadFunction(void* arg) {
+  void* threadFunction(void* arg)
+  {
     ThreadData* const data = static_cast< ThreadData* >(arg);
 
     const std::pair< size_t, size_t > result = calc(*data->ellipses, data->box, data->tests, data->seed);
@@ -108,9 +113,10 @@ namespace malashenko {
     return nullptr;
   }
 
-  std::pair< size_t, size_t > calcParallel(const std::vector< Ellipse > &ellipses,
+  std::pair< size_t, size_t > calcParallel(const std::vector< Ellipse >& ellipses,
                                         BoundingBox box, size_t threads,
-                                        size_t tests, size_t seed) {
+                                        size_t tests, size_t seed)
+  {
     std::vector< pthread_t > thread_ids(threads);
     std::vector< ThreadData > thread_data(threads);
 
@@ -160,7 +166,8 @@ namespace malashenko {
   }
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[])
+{
   if (argc != 3 && argc != 4) {
     std::cerr << "Usage: ./lab threads tries [seed]\n";
     return 1;
@@ -194,9 +201,9 @@ int main(int argc, char *argv[]) {
 
   threads_input = threads_input == 0 ? 1 : threads_input;
 
-  const size_t threads = static_cast<size_t>(threads_input);
-  const size_t tests = static_cast<size_t>(tests_input);
-  const size_t seed = static_cast<size_t>(seed_input);
+  const size_t threads = static_cast< size_t >(threads_input);
+  const size_t tests = static_cast< size_t >(tests_input);
+  const size_t seed = static_cast< size_t >(seed_input);
 
   std::vector< malashenko::Ellipse > ellipses;
 
